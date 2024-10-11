@@ -1,0 +1,1 @@
+from trees.app.trees_app import TreesApp
