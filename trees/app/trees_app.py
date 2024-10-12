@@ -5,18 +5,23 @@ from pygame import SurfaceType, Color
 from pygame.time import Clock
 from pygame.event import EventType
 
+from trees.image import Image
+
+def dbg_render(x: float) -> Tuple[float, float, float, float]:
+    return (1 - x, x, 1 - x, 1)
 
 class TreesApp:
     WINDOW_SIZE: ClassVar[Tuple[int, int]] = \
-        (1280, 720)
+        (720, 720)
     BACKGROUND_COLOR: ClassVar[Color] = \
-        Color(255, 255, 255)
+        Color(255, 250, 250)
     FPS_LIMIT: ClassVar[int] = \
         60
 
     screen: SurfaceType
     clock: Clock
     running: bool
+    dbg_img: Image
 
     def __init__(self):
         pygame.init()
@@ -24,6 +29,8 @@ class TreesApp:
         self.screen = pygame.display.set_mode()
         self.clock = Clock()
         self.running = False
+
+        self.dbg_img = Image.blank_image(dbg_render, (300, 300))
 
     def run(self):
         self.running = True
@@ -48,6 +55,8 @@ class TreesApp:
     
     def draw_current_frame(self):
         self.screen.fill(self.BACKGROUND_COLOR)
+        _ = self.dbg_img.pixels
+        self.screen.blit(self.dbg_img.surface, (300, 300))
         pygame.display.flip()
     
     def quit(self):
