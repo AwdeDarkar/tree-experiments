@@ -6,6 +6,7 @@ from pygame.time import Clock
 from pygame.event import EventType
 
 from trees.image import Image
+from trees.app.canvas import Canvas
 
 def dbg_render(x: float) -> Tuple[float, float, float, float]:
     return (1 - x, x, 1 - x, 1)
@@ -21,7 +22,7 @@ class TreesApp:
     screen: SurfaceType
     clock: Clock
     running: bool
-    dbg_img: Image
+    dbg_canvas: Canvas
 
     def __init__(self):
         pygame.init()
@@ -30,7 +31,10 @@ class TreesApp:
         self.clock = Clock()
         self.running = False
 
-        self.dbg_img = Image.blank_image(dbg_render, (300, 300))
+        self.dbg_canvas = Canvas(
+            Image.blank_image(dbg_render, (300, 300)),
+            (30, 30),
+        )
 
     def run(self):
         self.running = True
@@ -55,8 +59,7 @@ class TreesApp:
     
     def draw_current_frame(self):
         self.screen.fill(self.BACKGROUND_COLOR)
-        _ = self.dbg_img.pixels
-        self.screen.blit(self.dbg_img.surface, (300, 300))
+        self.dbg_canvas.draw(self.screen)
         pygame.display.flip()
     
     def quit(self):
