@@ -20,7 +20,6 @@ class Drawable(IDrawable):
         self.surface = Surface(self.size)
     
     def draw(self, surface: SurfaceType):
-        print(f"Drawing {self}")
         if self.changed or True: # TODO figure out how this should work
             self.render()
         surface.blit(self.surface, self.pos)

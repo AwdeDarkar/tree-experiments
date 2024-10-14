@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 
 from typing import ClassVar, Tuple
@@ -20,6 +21,8 @@ class RootElements:
 
 
 class RootFrame(Frame):
+    CANVAS_SIZE: ClassVar[int] = 500
+
     ROOT_STYLE: ClassVar[FrameStyling] = FrameStyling(
         base_colors=FrameColoring(
             background_color=Color(0, 0, 0),
@@ -44,7 +47,7 @@ class RootFrame(Frame):
     @classmethod
     def make_canvas(cls) -> Canvas:
         return Canvas(
-            Image.blank_image(dbg_render, (300, 300)),
+            Image.blank_image(dbg_render, (cls.CANVAS_SIZE, cls.CANVAS_SIZE)),
         )
 
     app: "TreesApp"
@@ -66,6 +69,8 @@ class RootFrame(Frame):
 class TreesApp:
     WINDOW_SIZE: ClassVar[Tuple[int, int]] = \
         (720, 720)
+    WINDOW_POS: ClassVar[Tuple[int, int]] = \
+        (int((2560 - 720) / 2), int((1440 / 4)))
     BACKGROUND_COLOR: ClassVar[Color] = \
         Color(255, 250, 250)
     FPS_LIMIT: ClassVar[int] = \
@@ -77,9 +82,12 @@ class TreesApp:
     root: RootFrame
 
     def __init__(self):
+        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{self.WINDOW_POS[0]},{self.WINDOW_POS[1]}"
         pygame.init()
 
-        self.screen = pygame.display.set_mode()
+        self.screen = pygame.display.set_mode(
+            self.WINDOW_SIZE,
+        )
         self.clock = Clock()
         self.running = False
         self.root = RootFrame(self)
