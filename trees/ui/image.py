@@ -12,12 +12,11 @@ import numpy as np
 from numpy import ndarray
 from numpy.typing import ArrayLike
 
-@dataclass
-class Image:
-    size: Tuple[int, int]
+from trees.ui.drawables import Drawable
+
+class Image(Drawable):
     data_layers: List[ndarray]
     data_render_func: Callable[[Any], Tuple[float, float, float, float]]
-    surface: Optional[SurfaceType]
 
     _cached: Optional[ndarray] = None
 
@@ -28,13 +27,22 @@ class Image:
         size: Tuple[int, int]
     ) -> "Image":
         return cls(
-            size=size,
-            data_layers=[
+            size,
+            [
                 np.zeros(size)
             ],
-            data_render_func=render,
-            surface=None,
+            render,
         )
+
+    def __init__(
+            self,
+            size: Tuple[int, int],
+            layers: List[ndarray],
+            render: Callable[[Any], Tuple[float, float, float, float]]
+        ):
+        Drawable.__init__(self, size)
+        self.data_layers = layers
+        self.data_render_func = render
 
     def link(self, surface: SurfaceType) -> Self:
         self.surface = surface
@@ -84,8 +92,12 @@ class Image:
     def _layer_setter(self, idx: int):
         def set(array: ndarray):
             self.data_layers[idx] = array
-            self._cached = None
+            self._invalidate()
         return set
+    
+    def _invalidate(self):
+        self._cached = None
+        self.changed = True
 
     @contextmanager
     def edit_layers(self, *layer_indexes) -> Generator[
@@ -99,7 +111,7 @@ class Image:
         try:
             yield editing_layers
         finally:
-            self._cached = None
+            self._invalidate()
 
     @staticmethod
     def pixel_to_int(pixel: Tuple[int, int, int]) -> int:
