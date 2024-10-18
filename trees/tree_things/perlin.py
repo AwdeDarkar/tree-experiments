@@ -1,5 +1,5 @@
 from itertools import product
-from functools import cached_property
+from functools import cached_property, cache
 from dataclasses import dataclass
 
 from typing import Literal, TypeVar, Tuple, Generator, List
@@ -60,7 +60,7 @@ class NoiseOctave:
         return np.array(list(product(*(
             np.linspace(0, 1, num=d)
             for d in self.shape
-        )))).reshape([*self.shape, 2])
+        )))).reshape([*self.shape, self.dimensions])
 
     def interpolated_gradient(self, points: ndarray) -> ndarray:
         interpolator = RegularGridInterpolator(
@@ -81,6 +81,15 @@ class PerlinNoiseScreen:
     octaves: int
     magnitude: float
     density: int
+
+    def __hash__(self) -> int:
+        return hash((
+            self.shape,
+            self.seed,
+            self.octaves,
+            self.magnitude,
+            self.density,
+        ))
 
     @cached_property
     def dimensions(self) -> int:
@@ -116,6 +125,31 @@ class PerlinNoiseScreen:
             for layer in self.octave_layers[:-1]
         ] + [highest_octave.gradient_grid])
         return gradients.sum(axis=0)
+    
+    @cache
+    def stencil(self, k: int) -> List[Tuple[Tuple[int, ...], ndarray]]:
+        """
+        Stencil of displacement vectors from all corners of the unit n-hypercube with side-length `k`
+        """
+        base_cube = np.array(list(product(
+            *(np.linspace(0, 1, num=k) for _ in range(self.dimensions))
+        ))).reshape([k for _ in range(self.dimensions)] + [self.dimensions])
+        stencil: List[Tuple[Tuple[int, ...], ndarray]] = []
+
+        for idx in product([1, -1], repeat=self.dimensions):
+            cube = base_cube[tuple([
+                slice(None, None, unit)
+                for unit in idx
+            ] + [slice(None, None, None)])].copy()
+            for i, unit in enumerate(idx):
+                cube[..., i] *= unit
+
+            stencil.append((
+                tuple([1 if unit < 0 else 0 for unit in idx]),
+                cube,
+            ))
+
+        return stencil
 
     def render_noise(self, shape: Tuple[int, ...]) -> ndarray:
         assert len(shape) == self.dimensions
