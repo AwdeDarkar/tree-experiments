@@ -21,7 +21,7 @@ class RootElements:
 
 
 class RootFrame(Frame):
-    CANVAS_SIZE: ClassVar[int] = 500
+    CANVAS_SIZE: ClassVar[int] = 800
 
     ROOT_STYLE: ClassVar[FrameStyling] = FrameStyling(
         base_colors=FrameColoring(
@@ -49,7 +49,7 @@ class RootFrame(Frame):
         return Canvas.perlin_noise_canvas(
             shape=(3, 3),
             size=cls.CANVAS_SIZE,
-            render_size=10,
+            render_size=12,
             seed=1337,
             octaves=2,
             magnitude=1.0,
@@ -74,9 +74,9 @@ class RootFrame(Frame):
 
 class TreesApp:
     WINDOW_SIZE: ClassVar[Tuple[int, int]] = \
-        (720, 720)
+        (1000, 1000)
     WINDOW_POS: ClassVar[Tuple[int, int]] = \
-        (int((2560 - 720) / 2), int((1440 / 4)))
+        (int((2560 - 1000) / 2), int((1440 / 4)))
     BACKGROUND_COLOR: ClassVar[Color] = \
         Color(255, 250, 250)
     FPS_LIMIT: ClassVar[int] = \

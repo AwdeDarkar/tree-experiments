@@ -29,7 +29,6 @@ class Image(Drawable):
     data_layers: List[DataLayerAlpha]
 
     _cached: Optional[ndarray] = None
-    _internal_surface: Optional[SurfaceType] = None
 
     def __init__(
             self,
@@ -94,24 +93,16 @@ class Image(Drawable):
         return final_array
     
     def render(self) -> ndarray:
-        rendered_pixels = self._scale_array(
-            self._render_layers()
-        )
-
-        if self._internal_surface is None:
-            self._internal_surface = surfarray.make_surface(rendered_pixels)
-        else:
-            surfarray.blit_array(self.surface, rendered_pixels)
-            """
-            transform.scale_by(
-                self._internal_surface,
-                self.scale,
-                self.surface
+        if self._cached is None:
+            print("re-rendering")
+            rendered_pixels = self._scale_array(
+                self._render_layers()
             )
-            """
-        
-        self._cached = rendered_pixels
-        return rendered_pixels
+            self._cached = rendered_pixels
+
+        surfarray.blit_array(self.surface, self._cached)
+
+        return self._cached
 
     def _layer_setter(self, idx: int):
         def set(array: ndarray):
