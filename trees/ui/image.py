@@ -59,6 +59,10 @@ class Image(Drawable):
         return (shape[0], shape[1])
 
     @cached_property
+    def scale(self) -> int:
+        return int(self.size[0] / self.internal_size[0])
+
+    @cached_property
     def positions(self) -> List[Tuple[int, int]]:
         return [idx for idx in np.ndindex(self.internal_size)] #type: ignore
 

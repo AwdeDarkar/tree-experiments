@@ -22,9 +22,13 @@ class Drawable(IDrawable):
     def draw(self, surface: SurfaceType):
         if self.changed or True: # TODO figure out how this should work
             self.render()
+        self._post_render()
         surface.blit(self.surface, self.pos)
     
     def _render(self):
+        pass
+
+    def _post_render(self):
         pass
     
     def render(self):
