@@ -3,3 +3,7 @@ from trees.interface.drawable import (
     ILayout, IResizable, ISelectable,
     ISelectionManager,
 )
+
+from trees.interface.image import (
+    RenderFunc, DataLayer, DataLayerAlpha,
+)

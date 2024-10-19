@@ -1,11 +1,16 @@
+from types import SimpleNamespace
+
 from typing import ClassVar, Tuple
 
 from pygame import Surface, SurfaceType, Color
 
+import numpy as np
 from numpy import ndarray
 
-from trees.ui.image import Image
+from trees.tree_things import PerlinNoiseScreen
+
 from trees.ui.drawables import Frame, FrameStyling, FrameColoring, FrameSpacing
+from trees.ui.image import Image
 
 class Canvas(Frame):
     CANVAS_STYLE: ClassVar[FrameStyling] = FrameStyling(
@@ -29,14 +34,46 @@ class Canvas(Frame):
         )
     )
 
+    @classmethod
+    def perlin_noise_canvas(
+        cls,
+        shape: Tuple[int, int],
+        size: int,
+        render_size: int,
+        seed: int,
+        octaves: int,
+        magnitude: float,
+        density: int,
+    ) -> "Canvas":
+        screen = PerlinNoiseScreen(
+            shape,
+            seed,
+            octaves,
+            magnitude,
+            density,
+        )
+        image = Image(
+            (size, size),
+            [(
+                screen.render_noise(render_size, normalize=True),
+                PerlinNoiseScreen.NOISE_RENDER_FUNC,
+                1.0,
+            )],
+        )
+        canvas = Canvas(
+            image,
+        )
+        canvas.misc.screen = screen
+        return canvas
+
     image: Image
-    scale: float
+    misc: SimpleNamespace
 
     def __init__(self, image: Image):
         Frame.__init__(self, self.CANVAS_STYLE, {})
 
         self.image = image
-        self.scale = 1.0
+        self.misc = SimpleNamespace()
 
         self.layout.row()\
           .add_child(self.image)

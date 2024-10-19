@@ -2,7 +2,7 @@ from itertools import product
 from functools import cached_property, cache
 from dataclasses import dataclass
 
-from typing import Literal, TypeVar, Tuple, Generator, List
+from typing import Literal, TypeVar, Tuple, ClassVar, List
 
 import numpy as np
 from numpy import ndarray, random
@@ -10,6 +10,8 @@ from numpy.random import Generator as RandomGenerator
 from numpy.typing import NDArray
 
 from scipy.interpolate import RegularGridInterpolator
+
+from trees.interface import RenderFunc
 
 @dataclass
 class NoiseOctave:
@@ -74,8 +76,13 @@ class NoiseOctave:
         return grid
 
 
+def _noise_render_function(x: float) -> Tuple[float, float, float]:
+    return (x, x, x)
+
 @dataclass
 class PerlinNoiseScreen:
+    NOISE_RENDER_FUNC: ClassVar[RenderFunc[float]] = _noise_render_function
+
     shape: Tuple[int, ...]
     seed: int
     octaves: int
@@ -150,7 +157,28 @@ class PerlinNoiseScreen:
             ))
 
         return stencil
-
-    def render_noise(self, shape: Tuple[int, ...]) -> ndarray:
-        assert len(shape) == self.dimensions
-        raise NotImplementedError
+    
+    @cache
+    def render_noise(self, size: int, normalize: bool = True) -> ndarray:
+        final = np.zeros([(d-1)*size for d in self.gradient.shape[:-1]])
+        for idx in np.ndindex(*[i-1 for i in self.gradient.shape[:-1]]):
+            g = self.gradient[
+                tuple([
+                    slice(i, i+2, None)
+                    for i in idx
+                ] + [slice(None, None, None)])
+            ]
+            val = np.sum([
+                np.dot(cube, g[idx])
+                for idx, cube in self.stencil(size)
+            ], axis=0)
+            final[
+                tuple([
+                    slice((size*i), (size*i)+size, None)
+                    for i in idx
+                ])
+            ] = val[::-1, ::-1]
+        if normalize:
+            r = final.max() - final.min()
+            return (final - final.min()) / r
+        return final

@@ -46,8 +46,14 @@ class RootFrame(Frame):
 
     @classmethod
     def make_canvas(cls) -> Canvas:
-        return Canvas(
-            Image.blank_image(dbg_render, (cls.CANVAS_SIZE, cls.CANVAS_SIZE)),
+        return Canvas.perlin_noise_canvas(
+            shape=(3, 3),
+            size=cls.CANVAS_SIZE,
+            render_size=10,
+            seed=1337,
+            octaves=2,
+            magnitude=1.0,
+            density=2,
         )
 
     app: "TreesApp"
