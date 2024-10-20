@@ -1,10 +1,12 @@
 from types import SimpleNamespace
+from itertools import product
 from functools import cached_property
 
-from typing import ClassVar, Tuple, Callable, List, Optional
+from typing import ClassVar, Tuple, Callable, List, Optional, Dict
 
-from pygame import Surface, SurfaceType, Color, mouse
+from pygame import Surface, SurfaceType, Color, mouse, transform
 from pygame import draw as pgdraw
+from pygame import math as pgmath
 from pygame.font import FontType, SysFont
 
 import numpy as np
@@ -60,7 +62,7 @@ class Canvas(Frame):
         image = Image(
             (size, size),
             [(
-                screen.render_noise(render_size, normalize=True),
+                screen.render_noise(render_size, normalize=True).T,
                 PerlinNoiseScreen.NOISE_RENDER_FUNC,
                 1.0,
             )],
@@ -98,7 +100,10 @@ class Canvas(Frame):
             (0, 0),
             Color(255, 255, 255)
         )
-        self.surface.blit(self.image.surface, self.image.pos)
+        self.surface.blit(
+            self.image.surface,
+            self.image.pos
+        )
 
     @cached_property
     def font(self) -> FontType:
@@ -190,10 +195,19 @@ class GridOverlay(CanvasOverlay):
         size = self.grid_shape[0] * 2
         pos = self.canvas.img_mouse_pixel / size
         return (int(pos[0]), int(pos[1]))
+    
+    @property
+    def grid_pixel(self) -> Tuple[int, int]:
+        size = self.grid_shape[0] * 2
+        pos = self.canvas.img_mouse_pixel
+        return (int(pos[0]) % size, int(pos[1]) % size)
+    
+    def scale_grid(self, length: int, gval: int) -> int:
+        return int(length / (self.grid_shape[0] - 1)) * gval
 
     def grid_rect(self, length: int) -> Tuple[int, int, int, int]:
         gx, gy = self.grid_pos
-        size = int(length / (self.grid_shape[0] - 1))
+        size = self.scale_grid(length, 1)
         return (
             gx * size + 2, gy * size + 2,
             size - 2, size - 2
@@ -202,6 +216,65 @@ class GridOverlay(CanvasOverlay):
     @property
     def grid_shape(self) -> Tuple[int, int]:
         return self.screen.gradient.shape[:-1] #type: ignore
+    
+    def draw_arrow(
+            self,
+            surface: SurfaceType,
+            pos: Tuple[int, int],
+            term: Tuple[int, int],
+            color: Color,
+            project: Optional[Tuple[int, int]] = None,
+        ):
+        vec = pgmath.Vector2(term[0] - pos[0], term[1] - pos[1])
+        if project:
+            avec = pgmath.Vector2(pos[0] - project[0], pos[1] - project[1])
+            pvec = avec.project(vec)
+            pgdraw.line(
+                surface,
+                Color(255, 0, 190),
+                pos,
+                (pvec[0] + pos[0], pvec[1] + pos[1]),
+                width=5
+            )
+
+        pgdraw.line(
+            surface,
+            color,
+            pos,
+            term,
+            width=3
+        )
+
+        alength = self.canvas.pixel_full
+        rt0 = vec.rotate(45)
+        rt0.scale_to_length(alength)
+        rt1 = vec.rotate(-45)
+        rt1.scale_to_length(alength)
+        vec.scale_to_length(alength * 1.3)
+
+        p0 = (
+            int(term[0] + rt0[0] - vec[0]),
+            int(term[1] + rt0[1] - vec[1]),
+        )
+        p1 = (
+            int(term[0] + rt1[0] - vec[0]),
+            int(term[1] + rt1[1] - vec[1]),
+        )
+
+        pgdraw.line(
+            surface,
+            color,
+            term,
+            p0,
+            width=2,
+        )
+        pgdraw.line(
+            surface,
+            color,
+            term,
+            p1,
+            width=2,
+        )
     
     def lines(self, length: int, axis: int, endpoint: bool = False) -> List[Tuple[Tuple[int, int], Tuple[int, int]]]:
         dim = self.grid_shape[axis] - 1
@@ -226,7 +299,7 @@ class GridOverlay(CanvasOverlay):
     def _render_overlay(self, surface: SurfaceType) -> SurfaceType:
         size = surface.get_size()
         for axis in [0, 1]:
-            for i, (start, stop) in enumerate(self.lines(size[axis], axis, True)):
+            for start, stop in self.lines(size[axis], axis, True):
                 pgdraw.line(
                     surface,
                     self.color,
@@ -234,12 +307,105 @@ class GridOverlay(CanvasOverlay):
                     stop,
                     self.thickness
                 )
-        if self.grid_pos[0] >=0 and self.grid_pos[1] >= 0:
+
+        corners: Dict[Tuple[int, int], Tuple[Tuple[int, int], Tuple[int, int]]] = {}
+        gleft, gtop = self.grid_pos
+        for pos in np.ndindex(self.screen.gradient.shape[:-1]):
+            vec = self.screen.gradient[pos] * self.canvas.pixel_half * self.canvas.misc.render_size
+            gpos = (
+                self.scale_grid(size[0], pos[0]),
+                self.scale_grid(size[1], pos[1])
+            )
+            gtar = (
+                int(gpos[0] + vec[1]),
+                int(gpos[1] + vec[0]),
+            )
+
+            proj = None
+            proj_x = None
+            proj_y = None
+
+            if pos[0] == gleft:
+                proj_y = self.grid_pixel[1] * self.canvas.pixel_full
+            elif pos[0] == gleft + 1:
+                proj_y = -self.grid_pixel[1] * self.canvas.pixel_full
+
+            if pos[1] == gtop:
+                proj_x = self.grid_pixel[0]
+            elif pos[1] == gtop + 1:
+                proj_x = -self.grid_pixel[0]
+            if proj_x and proj_y:
+                proj = (proj_y, proj_x)
+
+            self.draw_arrow(
+                surface,
+                gpos, gtar,
+                Color(10, 10, 255),
+                project=proj,
+            )
+
+        if gleft >= 0 and gtop >= 0:
             color = Color(255, 200, 200)
+            rect = self.grid_rect(size[0])
             pgdraw.rect(
                 surface,
                 color,
-                self.grid_rect(size[0]),
+                rect,
                 1,
             )
+
+            col = Color(0, 255, 140)
+            pgdraw.line(
+                surface,
+                col,
+                (rect[0], rect[1]),
+                (rect[0], rect[1] + self.canvas.pixel_full * self.grid_pixel[1]),
+                1,
+            )
+            pgdraw.line(
+                surface,
+                col,
+                (rect[0], rect[1]),
+                (rect[0] + self.canvas.pixel_full * self.grid_pixel[0], rect[1]),
+                1,
+            )
+            self.canvas.draw_text(
+                surface,
+                str(self.grid_pixel[1]),
+                (
+                    rect[0] - self.canvas.pixel_half * 3,
+                    rect[1] + self.canvas.pixel_full * self.grid_pixel[1],
+                ),
+                col,
+            )
+            self.canvas.draw_text(
+                surface,
+                str(self.grid_pixel[0]),
+                (
+                    rect[0] + self.canvas.pixel_full * self.grid_pixel[0],
+                    rect[1] - self.canvas.pixel_half * 3,
+                ),
+                col,
+            )
+
+            for (x, y), grid in self.screen.stencil(self.canvas.misc.render_size):
+                offv = (grid[self.grid_pixel] * self.canvas.pixel_full * self.canvas.misc.render_size).astype(np.int16)
+                rx = rect[0] + x * rect[2]
+                ry = rect[1] + y * rect[3]
+                try:
+                    self.draw_arrow(
+                        surface,
+                        (
+                            rx,
+                            ry,
+                        ),
+                        (
+                            rx + offv[0],
+                            ry + offv[1]
+                        ),
+                        col,
+                    )
+                except ValueError:
+                    pass
+        
         return surface
