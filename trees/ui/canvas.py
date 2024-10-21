@@ -308,7 +308,7 @@ class GridOverlay(CanvasOverlay):
                     self.thickness
                 )
 
-        corners: Dict[Tuple[int, int], Tuple[Tuple[int, int], Tuple[int, int]]] = {}
+        corners: Dict[Tuple[int, int], Tuple[int, int]] = {}
         gleft, gtop = self.grid_pos
         for pos in np.ndindex(self.screen.gradient.shape[:-1]):
             vec = self.screen.gradient[pos] * self.canvas.pixel_half * self.canvas.misc.render_size
@@ -325,22 +325,25 @@ class GridOverlay(CanvasOverlay):
             proj_x = None
             proj_y = None
 
-            if pos[0] == gleft:
-                proj_y = self.grid_pixel[1] * self.canvas.pixel_full
-            elif pos[0] == gleft + 1:
-                proj_y = -self.grid_pixel[1] * self.canvas.pixel_full
+            cx = pos[0] - gleft
+            cy = pos[1] - gtop
 
-            if pos[1] == gtop:
-                proj_x = self.grid_pixel[0]
-            elif pos[1] == gtop + 1:
-                proj_x = -self.grid_pixel[0]
+            if cx == 0 or cx == 1:
+                proj_y = self.grid_pixel[1] * self.canvas.pixel_full
+            if cy == 0 or cy == 1:
+                proj_x = self.grid_pixel[0] * self.canvas.pixel_full
+
             if proj_x and proj_y:
                 proj = (proj_y, proj_x)
+                corners[(cx, cy)] = vec
+                color = Color(100*cx, 100*cy, 255 - (80*cx + 80*cy))
+            else:
+                color = Color(170, 170, 190)
 
             self.draw_arrow(
                 surface,
                 gpos, gtar,
-                Color(10, 10, 255),
+                color,
                 project=proj,
             )
 
@@ -388,11 +391,14 @@ class GridOverlay(CanvasOverlay):
                 col,
             )
 
+            dotsum = 0
             for (x, y), grid in self.screen.stencil(self.canvas.misc.render_size):
                 offv = (grid[self.grid_pixel] * self.canvas.pixel_full * self.canvas.misc.render_size).astype(np.int16)
                 rx = rect[0] + x * rect[2]
                 ry = rect[1] + y * rect[3]
                 try:
+                    dot = np.dot(offv, corners[(x, y)])
+                    dotsum += dot
                     self.draw_arrow(
                         surface,
                         (
@@ -405,7 +411,45 @@ class GridOverlay(CanvasOverlay):
                         ),
                         col,
                     )
-                except ValueError:
+                    self.draw_arrow(
+                        surface,
+                        (
+                            rx + offv[0],
+                            ry + offv[1]
+                        ),
+                        (
+                            rx + offv[0] + corners[(x, y)][1],
+                            ry + offv[1] + corners[(x, y)][0]
+                        ),
+                        Color(130, 190, 140),
+                    )
+                    self.canvas.draw_text(
+                        surface,
+                        str(int(dot)),
+                        (
+                            rx + offv[0] + corners[(x, y)][1],
+                            ry + offv[1] + corners[(x, y)][0]
+                        ),
+                        Color(50, 100, 70),
+                    )
+                except (ValueError, KeyError):
                     pass
+
+        try:
+            nval = self.canvas.image.data_layers[0][0][
+                self.canvas.img_mouse_pixel[0],
+                self.canvas.img_mouse_pixel[1]
+            ]
+            self.canvas.draw_text(
+                surface,
+                f"{int(dotsum)}; {nval:0.3f}",
+                (
+                    self.canvas.img_mouse_pixel[0] * self.canvas.pixel_full,
+                    (self.canvas.img_mouse_pixel[1] + 3) * self.canvas.pixel_full,
+                ),
+                Color(0, 0, 0),
+            )
+        except IndexError:
+            pass
         
         return surface
