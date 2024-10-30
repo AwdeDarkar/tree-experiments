@@ -1,3 +1,4 @@
+import math
 from types import SimpleNamespace
 from itertools import product
 from functools import cached_property
@@ -393,7 +394,22 @@ class GridOverlay(CanvasOverlay):
 
             dotsum = 0
             for (x, y), grid in self.screen.stencil(self.canvas.misc.render_size):
-                offv = (grid[self.grid_pixel] * self.canvas.pixel_full * self.canvas.misc.render_size).astype(np.int16)
+                offv = (
+                    grid[self.grid_pixel] * self.canvas.pixel_full * self.canvas.misc.render_size
+                ).astype(np.int16)
+                """
+                offv = (
+                    grid[self.grid_pixel] * self.canvas.pixel_full * self.canvas.misc.render_size /
+                    ((np.linalg.norm(grid[self.grid_pixel]) + 0.05) ** 2)
+                ).astype(np.int16)
+                """
+                """
+                offv = (
+                    grid[self.grid_pixel] * self.canvas.pixel_full * self.canvas.misc.render_size *
+                    (math.sqrt(2) - np.linalg.norm(grid[self.grid_pixel]))
+                ).astype(np.int16)
+                """
+
                 rx = rect[0] + x * rect[2]
                 ry = rect[1] + y * rect[3]
                 try:

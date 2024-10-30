@@ -1,3 +1,4 @@
+import math
 from itertools import product
 from functools import cached_property, cache
 from dataclasses import dataclass
@@ -138,10 +139,11 @@ class PerlinNoiseScreen:
         """
         Stencil of displacement vectors from all corners of the unit n-hypercube with side-length `k`
         """
+        stencil: List[Tuple[Tuple[int, ...], ndarray]] = []
+
         base_cube = np.array(list(product(
             *(np.linspace(0, 1, num=k) for _ in range(self.dimensions))
         ))).reshape([k for _ in range(self.dimensions)] + [self.dimensions])
-        stencil: List[Tuple[Tuple[int, ...], ndarray]] = []
 
         for idx in product([1, -1], repeat=self.dimensions):
             cube = base_cube[tuple([
@@ -151,8 +153,10 @@ class PerlinNoiseScreen:
             for i, unit in enumerate(idx):
                 cube[..., i] *= unit
 
+            pos = tuple([1 if unit < 0 else 0 for unit in idx]) 
+            cube[pos] /=  ((np.linalg.norm(cube[pos]) + 0.05) ** 2)
             stencil.append((
-                tuple([1 if unit < 0 else 0 for unit in idx]),
+                pos,
                 cube,
             ))
 
@@ -169,7 +173,10 @@ class PerlinNoiseScreen:
                 ] + [slice(None, None, None)])
             ]
             val = np.sum([
-                np.dot(cube, g[idx])
+                np.dot(
+                    cube,
+                    g[idx]
+                )
                 for idx, cube in self.stencil(size)
             ], axis=0)
             final[
