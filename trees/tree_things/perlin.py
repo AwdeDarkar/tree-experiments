@@ -3,7 +3,7 @@ from itertools import product
 from functools import cached_property, cache
 from dataclasses import dataclass
 
-from typing import Literal, TypeVar, Tuple, ClassVar, List
+from typing import Literal, Callable, Tuple, ClassVar, List
 
 import numpy as np
 from numpy import ndarray, random
@@ -85,6 +85,7 @@ class NoiseOctave:
     top_shape: Tuple[int, ...]
     density: int
     magnitude: float
+    variance: float
     generator: RandomGenerator
 
     @cached_property
@@ -99,12 +100,12 @@ class NoiseOctave:
         ])
 
     def gen_vector(self) -> ndarray:
-        vec = self.generator.uniform(
-            low=-1.0,
-            high=1.0,
+        vec = self.generator.normal(
+            loc=0.0,
+            scale=self.variance,
             size=self.dimensions,
         )
-        return self.magnitude * (vec / np.linalg.norm(vec))
+        return (self.magnitude / (np.sum(vec ** 2))) * vec
 
     @cached_property
     def gradient_grid(self) -> ndarray:
@@ -151,15 +152,32 @@ class PerlinNoiseScreen:
     shape: Tuple[int, ...]
     seed: int
     octaves: int
-    magnitude: float
     density: int
+
+    variance_func: Callable[[int], float]
+    magnitude_func: Callable[[int], float]
+
+    @staticmethod
+    def constant(_: int) -> float:
+        return 1.0
+
+    @staticmethod
+    def linear(n: int) -> float:
+        return n / 2.0 + 1.0
+
+    @staticmethod
+    def quadratic(n: int) -> float:
+        return n**2 / 2.0 + 1.0
+
+    @staticmethod
+    def falloff(n: int) -> float:
+        return 1.0 / (n ** 2 + 0.5)
 
     def __hash__(self) -> int:
         return hash((
             self.shape,
             self.seed,
             self.octaves,
-            self.magnitude,
             self.density,
         ))
 
@@ -183,7 +201,8 @@ class PerlinNoiseScreen:
                 dimensions=self.dimensions,
                 top_shape=self.shape,
                 density=self.density,
-                magnitude=self.magnitude,
+                magnitude=self.magnitude_func(octave),
+                variance=self.variance_func(octave),
                 generator=self.generator,
             )
             for octave in range(self.octaves)
@@ -231,6 +250,18 @@ class PerlinNoiseScreen:
         field = kernel_method(self.gradient, wsize=3)
         delta = field.max() - field.min()
         return (field - field.min()) / delta
+    
+    @cached_property
+    def fft(self) -> ndarray:
+        return np.fft.fft2(self.scalar_field)
+    
+    @cached_property
+    def freqs(self) -> Tuple[ndarray, ndarray]:
+        normed = np.abs(self.fft)
+        return (
+            np.mean(normed, axis=0),
+            np.mean(normed, axis=1)
+        )
     
     @cache
     def render_noise(self, size: int, normalize: bool = True) -> ndarray:
