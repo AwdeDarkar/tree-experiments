@@ -11,8 +11,72 @@ from numpy.random import Generator as RandomGenerator
 from numpy.typing import NDArray
 
 from scipy.interpolate import RegularGridInterpolator
+from scipy.integrate import simpson
 
 from trees.interface import RenderFunc
+
+def integrate_kernel(grad_window: ndarray, value: float):
+    wsize = grad_window.shape[0]
+    grid = np.zeros([
+        wsize for _ in range(len(grad_window.shape) - 1)
+    ])
+    grid[tuple([0 for _ in range(len(grid.shape))])] = value
+
+    for _index in np.ndindex(grid.shape):
+        assert isinstance(_index, tuple)
+        index: Tuple[int, ...] = _index # type: ignore
+
+        for i, b in enumerate(index):
+            if b > 0:
+                #import pdb; pdb.set_trace()
+                grid[index] += grid[tuple([
+                    0 if i == j else d
+                    for j, d in enumerate(index)
+                ])] + simpson(grad_window[tuple([
+                    slice(None, d) if i == j else slice(d, d+1)
+                    for j, d in enumerate(index)
+                ] + [i])])[0]
+
+    return grid
+
+
+def kernel_method(gradient: ndarray, wsize=3):
+    grid = np.zeros(gradient.shape[:-1])
+
+    ex_grid = np.tile(grid, [2 for _ in grid.shape])
+    ex_grad = np.tile(gradient, [2 for _ in grid.shape] + [1])
+    #print(grid.shape)
+
+    for _index in np.ndindex(grid.shape):
+        assert isinstance(_index, tuple)
+        index: Tuple[int, ...] = _index # type: ignore
+
+        window = [
+            slice(d, d + wsize, None)
+            for d in index
+        ]
+        ex_grid[tuple(window)] += integrate_kernel(
+            ex_grad[tuple(window + [slice(None, None, None)])],
+            grid[index],
+        ) / (wsize ** len(grid.shape))
+    
+    grid = ex_grid[tuple([
+        slice(None, d, None)
+        for d in grid.shape
+    ])]
+
+    for i, b in enumerate(grid.shape):
+        #import pdb; pdb.set_trace()
+        grid[tuple([
+            slice(None, wsize, None) if i == j else slice(None, None, None)
+            for j, d in enumerate(grid.shape)
+        ])] += ex_grid[tuple([
+            slice(d, d + wsize, None) if i == j else slice(None, d, None)
+            for j, d in enumerate(grid.shape)
+        ])]
+    
+    return grid
+
 
 @dataclass
 class NoiseOctave:
@@ -161,6 +225,12 @@ class PerlinNoiseScreen:
             ))
 
         return stencil
+    
+    @cached_property
+    def scalar_field(self) -> ndarray:
+        field = kernel_method(self.gradient, wsize=3)
+        delta = field.max() - field.min()
+        return (field - field.min()) / delta
     
     @cache
     def render_noise(self, size: int, normalize: bool = True) -> ndarray:
